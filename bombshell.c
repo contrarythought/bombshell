@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
             // parse command - NOTE: strsep modifies input by updating input to point past the token returned
             char *command = strsep(&input, " ");
 
-            // path - setting it to the input modified above
             char *path = NULL;
 
             // process built-in commands
