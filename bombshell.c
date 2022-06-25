@@ -46,15 +46,14 @@ int main(int argc, char *argv[])
             char *path = NULL;
 
             // process built-in commands
-
-            if (!strcmp(command, "exit\n")) {
+            if (!strncmp(command, "exit\n", strlen("exit\n"))) {
 
                 exit(EXIT_SUCCESS);
 
             } 
 
             // TODO
-            else if (!strcmp(command, "cd")) {
+            else if (!strncmp(command, "cd", strlen("cd"))) {
 
                 // get location to cd into
                 path = strsep(&input, "\n");
