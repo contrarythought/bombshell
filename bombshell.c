@@ -6,6 +6,10 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
+
+#define START_PATH "/bin"
 
 void err(int e)
 {
@@ -44,7 +48,7 @@ void err(int e)
     case EEXIST:
         printf("pathname already exists (not necessarily as a directory). This includes the case where pathname is a symbolic link, dangling or not.\n");
         break;
-    case EINVAL:   
+    case EINVAL:
         printf("the final component (\"basename\") of the new directory's pathname is invalid (e.g., it contains characters not permitted by the underlying filesystem.\n");
         break;
     case EMLINK:
@@ -94,6 +98,9 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            // save full input
+            char *save_input = strdup(input);
+
             // parse command - NOTE: strsep modifies input by updating input to point past the token returned
             char *command = strsep(&input, " ");
 
@@ -120,33 +127,71 @@ int main(int argc, char *argv[])
                     err(errno);
             }
 
-            // create new process to execute
-            else 
+            // create new process to execute non built-in command
+            else
             {
                 path = strsep(&input, "\n");
                 char **args = NULL;
+                char *tok = NULL;
+
+                args = (char **)malloc(sizeof(char *));
+                if (!args)
+                    err(errno);
 
                 // tokenize path
-                int i;
-                for (i = 0; path; i++)
+                if (path)
                 {
-                    args[i] = strsep(&path, " ");
+                    args[0] = strdup(command);
+                    if (!args[0])
+                        err(errno);
+
+                    int i;
+                    for (i = 0; path; i++)
+                    {
+                        tok = strsep(&path, " ");
+                        args = (char **)realloc(args, sizeof(args) * (i + 2));
+                        if (!args)
+                            err(errno);
+
+                        args[i] = tok;
+                    }
                 }
 
-                // delete \n from last arg
-                args[i][strlen(args[i]) - 1] = '\0';
+                else
+                {
+                    // cut off \n if no args exist
+                    command[strlen(command) - 1] = '\0';
+                    args[0] = strdup(command);
+                    if (!args[0])
+                        err(errno);
+                }
 
                 int child = fork();
 
                 if (child < 0)
                     err(errno);
-                
-                else if (child == 0)
-                    execvp(command, args);
 
-                // wait for child process to finish
+                else if (child == 0)
+                {
+                    int e;
+                    if ((e = execvp(command, args)) == -1)
+                    {
+                        printf("Failed to execute\n");
+                    }
+                }
+
                 wait(NULL);
+
+                int i;
+                for (i = 0; *(args + i); i++)
+                {
+                    free(args[i]);
+                }
+
+                free(args);
             }
+
+            free(save_input);
         }
     }
 
