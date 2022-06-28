@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
                 path = strsep(&input, "\n");
                 char **args = NULL;
                 char *tok = NULL;
-
                 args = (char **)malloc(sizeof(char *));
                 if (!args)
                     err(errno);
@@ -146,15 +145,15 @@ int main(int argc, char *argv[])
                         err(errno);
 
                     int i;
-                    for (i = 0; path; i++)
+                    for (i = 1; path; i++)
                     {
                         tok = strsep(&path, " ");
-                        args = (char **)realloc(args, sizeof(args) * (i + 2));
+                        args = (char **)realloc(args, sizeof(char *) * (i + 1));
+                        args[i] = strdup(tok);
                         if (!args)
                             err(errno);
-
-                        args[i] = tok;
                     }
+                    args[i] = NULL;
                 }
 
                 else
@@ -173,22 +172,24 @@ int main(int argc, char *argv[])
 
                 else if (child == 0)
                 {
-                    int e;
-                    if ((e = execvp(command, args)) == -1)
+                    if (execvp(args[0], args) == -1)
                     {
                         printf("Failed to execute\n");
                     }
                 }
 
-                wait(NULL);
-
-                int i;
-                for (i = 0; *(args + i); i++)
+                else
                 {
-                    free(args[i]);
-                }
+                    wait(NULL);
 
-                free(args);
+                    int i;
+                    for (i = 0; args[i]; i++)
+                    {
+                        free(args[i]);
+                    }
+                    
+                    free(args);
+                }
             }
 
             free(save_input);
