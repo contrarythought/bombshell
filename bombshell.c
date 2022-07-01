@@ -70,6 +70,37 @@ void process_file(char *file)
 {
 }
 
+// TODO
+void process_cmd(char *cmd)
+{
+    while (1)
+    {
+        char *tok = strsep(&cmd, " ");
+        if (strncmp(tok, "&", 1))
+        {
+            char *command = strdup(tok);
+            if (!command)
+                err(errno);
+
+            // get next token    
+            tok = strsep(&cmd, " ");
+
+            // execute built-in commands
+            if (!strncmp(command, "exit\n", 5))
+            {
+                exit(EXIT_SUCCESS);
+            }
+
+            else if (!strncmp(command, "cd", 2))
+            {
+                int e = chdir(tok);
+                if (e == -1)
+                    err(errno);
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     // process batch commands via file ex-stdin
@@ -98,6 +129,9 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            process_cmd(input);
+
+            /*
             // save full input
             char *save_input = strdup(input);
 
@@ -148,6 +182,12 @@ int main(int argc, char *argv[])
                     for (i = 1; path; i++)
                     {
                         tok = strsep(&path, " ");
+
+                        
+                        if (strncmp(tok, "&", 1))
+                        {
+
+                        }
                         args = (char **)realloc(args, sizeof(char *) * (i + 1));
                         args[i] = strdup(tok);
                         if (!args)
@@ -193,7 +233,9 @@ int main(int argc, char *argv[])
             }
 
             free(save_input);
-        }
+            */
+        } // end while
+
     }
 
     return EXIT_SUCCESS;
