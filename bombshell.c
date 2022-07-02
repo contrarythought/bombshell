@@ -65,6 +65,13 @@ void err(int e)
         break;
     }
 }
+
+// TODO
+void execute_cmd(char *cmd)
+{
+
+}
+
 // TODO
 void process_file(char *file)
 {
@@ -73,30 +80,50 @@ void process_file(char *file)
 // TODO
 void process_cmd(char *cmd)
 {
-    while (1)
+    while (cmd)
     {
-        char *tok = strsep(&cmd, " ");
-        if (strncmp(tok, "&", 1))
+        char *tok = NULL;
+
+        // cache parallel commands
+        if (strstr(cmd, "&"))
         {
-            char *command = strdup(tok);
-            if (!command)
-                err(errno);
+            char **cached_cmds = NULL;
 
-            // get next token    
-            tok = strsep(&cmd, " ");
+            tok = strsep(&cmd, "&");
 
-            // execute built-in commands
-            if (!strncmp(command, "exit\n", 5))
+            int i;
+            for (i = 0; cmd; i++, tok = strsep(&cmd, "&"))
             {
-                exit(EXIT_SUCCESS);
-            }
+                cached_cmds = (char **)realloc(cached_cmds, i + 1);
+                if (!cached_cmds)
+                    err(errno);
 
-            else if (!strncmp(command, "cd", 2))
-            {
-                int e = chdir(tok);
-                if (e == -1)
+                cached_cmds[i] = strdup(tok);
+                if (!cached_cmds[i])
                     err(errno);
             }
+
+            // run the processes in parallel
+            pid_t processes = (pid_t)malloc(sizeof(pid_t) * i);
+            if (!processes)
+                err(errno);
+
+            int j;
+            for (j = 0; j < i; j++)
+            {
+                processes[j] = fork();
+                if (processes[j] < 0)
+                    err(errno); // TODO - update err()
+
+                else if (processes[j] == 0)
+                    break;
+            }
+
+            // process[j] breaks out of loop and executes cmd[j] 
+            if (processes[j] == 0)
+                execute_cmd(cached_cmds[j]);
+
+            wait(NULL);
         }
     }
 }
@@ -117,6 +144,7 @@ int main(int argc, char *argv[])
 
         while (1)
         {
+            printf("in orig while\n");
             getcwd(cwd, sizeof(cwd));
             printf("bombshell:~%s$ ", cwd);
 
