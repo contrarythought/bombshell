@@ -80,6 +80,9 @@ void process_file(char *file)
 // TODO
 void process_cmd(char *cmd)
 {
+    char **cached_cmds = NULL;
+    pid_t *processes = NULL;
+
     while (cmd)
     {
         char *tok = NULL;
@@ -87,8 +90,6 @@ void process_cmd(char *cmd)
         // cache parallel commands
         if (strstr(cmd, "&"))
         {
-            char **cached_cmds = NULL;
-
             tok = strsep(&cmd, "&");
 
             int i;
@@ -104,7 +105,7 @@ void process_cmd(char *cmd)
             }
 
             // run the processes in parallel
-            pid_t processes = (pid_t)malloc(sizeof(pid_t) * i);
+            processes = (pid_t)malloc(sizeof(pid_t) * i);
             if (!processes)
                 err(errno);
 
@@ -125,7 +126,24 @@ void process_cmd(char *cmd)
 
             wait(NULL);
         }
+
+        else 
+        {
+            // TODO
+        }
     }
+
+    if (cached_cmds)
+    {
+        int i;
+        for (i = 0; cached_cmds[i]; i++)
+        {
+            free(cached_cmds[i]);
+        }
+        free(cached_cmds);
+    }
+
+    if (processes) free(processes);
 }
 
 int main(int argc, char *argv[])
