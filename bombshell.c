@@ -122,8 +122,11 @@ void process_cmd(char *cmd)
 
             // process[j] breaks out of loop and executes cmd[j] 
             if (processes[j] == 0)
+            {
                 execute_cmd(cached_cmds[j]);
-
+                exit(EXIT_SUCCESS);
+            }
+                
             wait(NULL);
         }
 
