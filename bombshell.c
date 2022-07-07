@@ -69,7 +69,37 @@ void err(int e)
 // TODO
 void execute_cmd(char *cmd)
 {
+    char *saved_cmd = strdup(cmd);
+    if (!saved_cmd)
+        err(errno);
 
+    char *command = NULL;
+    char *path = NULL;
+
+    command = strsep(&cmd, " \n");
+    if (!command)
+        return;
+
+    // execute built-in commands
+    if (!strncmp(command, "exit\n", 5))
+    {
+        free(saved_cmd);
+        exit(EXIT_SUCCESS);
+    }
+
+    else if (!strncmp(command, "cd", 2))
+    {
+        path = strsep(&cmd, " \n");
+        if (chdir(path) == -1)
+            err(errno);
+    }
+
+    else if (!strncmp(command, "mkdir", 5))
+    {
+        path = strsep(&cmd, " \n");
+        if (mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+            err(errno);
+    }
 }
 
 // TODO
@@ -83,57 +113,54 @@ void process_cmd(char *cmd)
     char **cached_cmds = NULL;
     pid_t *processes = NULL;
 
-    while (cmd)
+    char *tok = NULL;
+
+    // cache parallel commands
+    if (strstr(cmd, "&"))
     {
-        char *tok = NULL;
+        tok = strsep(&cmd, "&");
 
-        // cache parallel commands
-        if (strstr(cmd, "&"))
+        int i;
+        for (i = 0; cmd; i++, tok = strsep(&cmd, "&"))
         {
-            tok = strsep(&cmd, "&");
-
-            int i;
-            for (i = 0; cmd; i++, tok = strsep(&cmd, "&"))
-            {
-                cached_cmds = (char **)realloc(cached_cmds, i + 1);
-                if (!cached_cmds)
-                    err(errno);
-
-                cached_cmds[i] = strdup(tok);
-                if (!cached_cmds[i])
-                    err(errno);
-            }
-
-            // run the processes in parallel
-            processes = (pid_t)malloc(sizeof(pid_t) * i);
-            if (!processes)
+            cached_cmds = (char **)realloc(cached_cmds, i + 1);
+            if (!cached_cmds)
                 err(errno);
 
-            int j;
-            for (j = 0; j < i; j++)
-            {
-                processes[j] = fork();
-                if (processes[j] < 0)
-                    err(errno); // TODO - update err()
-
-                else if (processes[j] == 0)
-                    break;
-            }
-
-            // process[j] breaks out of loop and executes cmd[j] 
-            if (processes[j] == 0)
-            {
-                execute_cmd(cached_cmds[j]);
-                exit(EXIT_SUCCESS);
-            }
-                
-            wait(NULL);
+            cached_cmds[i] = strdup(tok);
+            if (!cached_cmds[i])
+                err(errno);
         }
 
-        else 
+        // run the processes in parallel
+        processes = (pid_t *)malloc(sizeof(pid_t) * i);
+        if (!processes)
+            err(errno);
+
+        int j;
+        for (j = 0; j < i; j++)
         {
-            // TODO
+            processes[j] = fork();
+            if (processes[j] < 0)
+                err(errno); // TODO - update err()
+
+            else if (processes[j] == 0)
+                break;
         }
+
+        // process[j] breaks out of loop and executes cmd[j]
+        if (processes[j] == 0)
+        {
+            execute_cmd(cached_cmds[j]);
+            exit(EXIT_SUCCESS);
+        }
+
+        wait(NULL);
+    }
+
+    else
+    {
+        // TODO
     }
 
     if (cached_cmds)
@@ -146,7 +173,8 @@ void process_cmd(char *cmd)
         free(cached_cmds);
     }
 
-    if (processes) free(processes);
+    if (processes)
+        free(processes);
 }
 
 int main(int argc, char *argv[])
@@ -232,7 +260,7 @@ int main(int argc, char *argv[])
                     {
                         tok = strsep(&path, " ");
 
-                        
+
                         if (strncmp(tok, "&", 1))
                         {
 
@@ -276,7 +304,7 @@ int main(int argc, char *argv[])
                     {
                         free(args[i]);
                     }
-                    
+
                     free(args);
                 }
             }
@@ -284,7 +312,6 @@ int main(int argc, char *argv[])
             free(save_input);
             */
         } // end while
-
     }
 
     return EXIT_SUCCESS;
