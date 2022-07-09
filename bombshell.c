@@ -69,6 +69,8 @@ void err(int e)
 // TODO
 void execute_cmd(char *cmd)
 {
+    // cmd = command + path
+
     char *saved_cmd = strdup(cmd);
     if (!saved_cmd)
         err(errno);
@@ -89,16 +91,69 @@ void execute_cmd(char *cmd)
 
     else if (!strncmp(command, "cd", 2))
     {
-        path = strsep(&cmd, " \n");
+        path = strsep(&cmd, "\n");
         if (chdir(path) == -1)
             err(errno);
     }
 
     else if (!strncmp(command, "mkdir", 5))
     {
-        path = strsep(&cmd, " \n");
+        path = strsep(&cmd, "\n");
         if (mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
             err(errno);
+    }
+    
+    else 
+    {
+        //path = strsep(&cmd, "\n");
+        // path might have mulitple space-separated commands
+        char **args = (char **)malloc(sizeof(char *));
+        if (!args)
+            err(errno);
+        
+        // step through each arg and save it
+        args[0] = strdup(command);
+        int i;
+        char *arg = NULL;
+        for (i = 1; cmd; arg = strsep(&cmd, " "), i++)
+        {
+            args = (char **)realloc(args, i + 1);
+            if (!args)
+                err(errno);
+            args[i] = strdup(arg);
+            if (!args[i])
+                err(errno);
+        }
+        // not 100% sure if this is necessary
+        args = (char **)realloc(args, i + 1);
+        if (!args)
+            err(errno);
+        args[i] = NULL;
+
+        // execute command in separate process
+        int child = fork();
+
+        if (child < 0)
+            err(errno);
+        
+        else if (child == 0)
+        {
+            if (execvp(command, args) == -1)
+                err(errno);
+        }
+
+        else
+        {
+            wait(NULL);
+            for (i = 0; args[i]; i++)
+            {
+                free(args[i]);
+            }
+            free(args);
+
+            free(saved_cmd);
+        }
+            
     }
 }
 
@@ -118,10 +173,10 @@ void process_cmd(char *cmd)
     // cache parallel commands
     if (strstr(cmd, "&"))
     {
-        tok = strsep(&cmd, "&");
+        tok = strsep(&cmd, "&\n");
 
         int i;
-        for (i = 0; cmd; i++, tok = strsep(&cmd, "&"))
+        for (i = 0; cmd; i++, tok = strsep(&cmd, "&\n"))
         {
             cached_cmds = (char **)realloc(cached_cmds, i + 1);
             if (!cached_cmds)
