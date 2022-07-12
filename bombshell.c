@@ -162,10 +162,19 @@ void process_file(char *file)
 {
 }
 
+void trim(char **tok)
+{
+    if ((*tok)[strlen(*tok) - 1] == ' ')
+        (*tok)[strlen(*tok) - 1] = '\0';
+    while ((**tok) == ' ')
+        (*tok)++;
+}
+
 // TODO
 void process_cmd(char *cmd)
 {
     char **cached_cmds = NULL;
+    int len = 0;
     pid_t *processes = NULL;
 
     char *tok = NULL;
@@ -174,43 +183,38 @@ void process_cmd(char *cmd)
     if (strstr(cmd, "&"))
     {
         tok = strsep(&cmd, "&\n");
-
+        
         int i;
-        for (i = 0; cmd; i++, tok = strsep(&cmd, "&\n"))
+        for (i = 0; *cmd; tok = strsep(&cmd, "&\n"), i++)
         {
-            cached_cmds = (char **)realloc(cached_cmds, i + 1);
+            trim(&tok);
+            cached_cmds = (char **)realloc(cached_cmds, sizeof(char *) * (i + 1));
             if (!cached_cmds)
                 err(errno);
-
+            
             cached_cmds[i] = strdup(tok);
             if (!cached_cmds[i])
                 err(errno);
+            
         }
-
-        // run the processes in parallel
-        processes = (pid_t *)malloc(sizeof(pid_t) * i);
-        if (!processes)
+        trim(&tok);
+        cached_cmds = (char **)realloc(cached_cmds, sizeof(char *) * (i + 1));
+        if (!cached_cmds)
+            err(errno);
+        cached_cmds[i] = strdup(tok);
+        if (!cached_cmds[i])
             err(errno);
 
-        int j;
-        for (j = 0; j < i; j++)
+        len = i + 1;
+        for (i = 0; i < len; i++)
         {
-            processes[j] = fork();
-            if (processes[j] < 0)
-                err(errno); // TODO - update err()
-
-            else if (processes[j] == 0)
-                break;
+            printf("%s\n", cached_cmds[i]);
         }
 
-        // process[j] breaks out of loop and executes cmd[j]
-        if (processes[j] == 0)
-        {
-            execute_cmd(cached_cmds[j]);
-            exit(EXIT_SUCCESS);
-        }
-
-        wait(NULL);
+        // TODO
+        processes = (pid_t *)malloc(sizeof(pid_t) * len);
+        if (!processes)
+            err(errno);
     }
 
     else
@@ -221,7 +225,7 @@ void process_cmd(char *cmd)
     if (cached_cmds)
     {
         int i;
-        for (i = 0; cached_cmds[i]; i++)
+        for (i = 0; i < len; i++)
         {
             free(cached_cmds[i]);
         }
@@ -248,7 +252,6 @@ int main(int argc, char *argv[])
 
         while (1)
         {
-            printf("in orig while\n");
             getcwd(cwd, sizeof(cwd));
             printf("bombshell:~%s$ ", cwd);
 
