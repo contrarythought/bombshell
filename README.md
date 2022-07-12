@@ -1,2 +1,2 @@
 # bombshell
-Basic shell program to learn about how processes work
+Basic shell program to learn about multiprocess programming
