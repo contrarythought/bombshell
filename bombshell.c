@@ -215,6 +215,21 @@ void process_cmd(char *cmd)
         processes = (pid_t *)malloc(sizeof(pid_t) * len);
         if (!processes)
             err(errno);
+
+        for (i = 0; i < len; i++)
+        {
+            processes[i] = fork();
+            if (!processes[i])
+                break;
+        }
+
+        if (!processes[i])
+        {
+            execute_cmd(cached_cmds[i]);
+            exit(EXIT_SUCCESS);
+        }
+
+        wait(NULL);
     }
 
     else
