@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -66,11 +67,9 @@ void err(int e)
     }
 }
 
-// TODO
 void execute_cmd(char *cmd)
 {
     // cmd = command + path
-
     char *saved_cmd = strdup(cmd);
     if (!saved_cmd)
         err(errno);
@@ -78,12 +77,12 @@ void execute_cmd(char *cmd)
     char *command = NULL;
     char *path = NULL;
 
-    command = strsep(&cmd, " \n");
+    command = strsep(&cmd, " ");
     if (!command)
         return;
 
     // execute built-in commands
-    if (!strncmp(command, "exit\n", 5))
+    if (!strncmp(command, "exit", 4))
     {
         free(saved_cmd);
         exit(EXIT_SUCCESS);
@@ -91,7 +90,7 @@ void execute_cmd(char *cmd)
 
     else if (!strncmp(command, "cd", 2))
     {
-        path = strsep(&cmd, "\n");
+        path = strsep(&cmd, " ");
         if (chdir(path) == -1)
             err(errno);
     }
@@ -102,21 +101,21 @@ void execute_cmd(char *cmd)
         if (mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
             err(errno);
     }
-    
-    else 
+
+    else
     {
-        //path = strsep(&cmd, "\n");
-        // path might have mulitple space-separated commands
+        //  path might have mulitple space-separated commands
         char **args = (char **)malloc(sizeof(char *));
         if (!args)
             err(errno);
-        
+
         // step through each arg and save it
         args[0] = strdup(command);
         int i;
         char *arg = NULL;
-        for (i = 1; cmd; arg = strsep(&cmd, " "), i++)
+        for (i = 1; cmd; i++)
         {
+            arg = strsep(&cmd, " ");
             args = (char **)realloc(args, i + 1);
             if (!args)
                 err(errno);
@@ -135,7 +134,7 @@ void execute_cmd(char *cmd)
 
         if (child < 0)
             err(errno);
-        
+
         else if (child == 0)
         {
             if (execvp(command, args) == -1)
@@ -153,7 +152,6 @@ void execute_cmd(char *cmd)
 
             free(saved_cmd);
         }
-            
     }
 }
 
@@ -164,26 +162,27 @@ void process_file(char *file)
 
 void trim(char **tok)
 {
-    if ((*tok)[strlen(*tok) - 1] == ' ')
-        (*tok)[strlen(*tok) - 1] = '\0';
+    char *w = (*tok) + strlen(*tok) - 1;
+    while (isspace(*w))
+        w--;
+    w++;
+    *w = '\0';
+
     while ((**tok) == ' ')
         (*tok)++;
 }
 
-// TODO
 void process_cmd(char *cmd)
 {
     char **cached_cmds = NULL;
     int len = 0;
-    pid_t *processes = NULL;
-
     char *tok = NULL;
 
     // cache parallel commands
     if (strstr(cmd, "&"))
     {
         tok = strsep(&cmd, "&\n");
-        
+
         int i;
         for (i = 0; *cmd; tok = strsep(&cmd, "&\n"), i++)
         {
@@ -191,11 +190,10 @@ void process_cmd(char *cmd)
             cached_cmds = (char **)realloc(cached_cmds, sizeof(char *) * (i + 1));
             if (!cached_cmds)
                 err(errno);
-            
+
             cached_cmds[i] = strdup(tok);
             if (!cached_cmds[i])
                 err(errno);
-            
         }
         trim(&tok);
         cached_cmds = (char **)realloc(cached_cmds, sizeof(char *) * (i + 1));
@@ -206,35 +204,26 @@ void process_cmd(char *cmd)
             err(errno);
 
         len = i + 1;
+
+        int child;
         for (i = 0; i < len; i++)
         {
-            printf("%s\n", cached_cmds[i]);
+            child = fork();
+            if (!child)
+            {
+                execute_cmd(cached_cmds[i]);
+                exit(EXIT_SUCCESS);
+            }
+
+            else
+                wait(NULL);
         }
-
-        // TODO
-        processes = (pid_t *)malloc(sizeof(pid_t) * len);
-        if (!processes)
-            err(errno);
-
-        for (i = 0; i < len; i++)
-        {
-            processes[i] = fork();
-            if (!processes[i])
-                break;
-        }
-
-        if (!processes[i])
-        {
-            execute_cmd(cached_cmds[i]);
-            exit(EXIT_SUCCESS);
-        }
-
-        wait(NULL);
     }
 
     else
     {
-        // TODO
+        trim(&cmd);
+        execute_cmd(cmd);
     }
 
     if (cached_cmds)
@@ -246,9 +235,6 @@ void process_cmd(char *cmd)
         }
         free(cached_cmds);
     }
-
-    if (processes)
-        free(processes);
 }
 
 int main(int argc, char *argv[])
@@ -280,111 +266,7 @@ int main(int argc, char *argv[])
             }
 
             process_cmd(input);
-
-            /*
-            // save full input
-            char *save_input = strdup(input);
-
-            // parse command - NOTE: strsep modifies input by updating input to point past the token returned
-            char *command = strsep(&input, " ");
-
-            char *path = NULL;
-
-            // process built-in commands
-            if (!strncmp(command, "exit\n", strlen("exit\n")))
-                exit(EXIT_SUCCESS);
-
-            else if (!strncmp(command, "cd", strlen("cd")))
-            {
-                // get location to cd into
-                path = strsep(&input, "\n");
-                int e = chdir(path);
-                if (e == -1)
-                    err(errno);
-            }
-
-            else if (!strncmp(command, "mkdir", strlen("mkdir")))
-            {
-                path = strsep(&input, "\n");
-                int e = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-                if (e == -1)
-                    err(errno);
-            }
-
-            // create new process to execute non built-in command
-            else
-            {
-                path = strsep(&input, "\n");
-                char **args = NULL;
-                char *tok = NULL;
-                args = (char **)malloc(sizeof(char *));
-                if (!args)
-                    err(errno);
-
-                // tokenize path
-                if (path)
-                {
-                    args[0] = strdup(command);
-                    if (!args[0])
-                        err(errno);
-
-                    int i;
-                    for (i = 1; path; i++)
-                    {
-                        tok = strsep(&path, " ");
-
-
-                        if (strncmp(tok, "&", 1))
-                        {
-
-                        }
-                        args = (char **)realloc(args, sizeof(char *) * (i + 1));
-                        args[i] = strdup(tok);
-                        if (!args)
-                            err(errno);
-                    }
-                    args[i] = NULL;
-                }
-
-                else
-                {
-                    // cut off \n if no args exist
-                    command[strlen(command) - 1] = '\0';
-                    args[0] = strdup(command);
-                    if (!args[0])
-                        err(errno);
-                }
-
-                int child = fork();
-
-                if (child < 0)
-                    err(errno);
-
-                else if (child == 0)
-                {
-                    if (execvp(args[0], args) == -1)
-                    {
-                        printf("Failed to execute\n");
-                    }
-                }
-
-                else
-                {
-                    wait(NULL);
-
-                    int i;
-                    for (i = 0; args[i]; i++)
-                    {
-                        free(args[i]);
-                    }
-
-                    free(args);
-                }
-            }
-
-            free(save_input);
-            */
-        } // end while
+        }
     }
 
     return EXIT_SUCCESS;
