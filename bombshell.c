@@ -210,14 +210,15 @@ void process_cmd(char *cmd)
         {
             child = fork();
             if (!child)
-            {
-                execute_cmd(cached_cmds[i]);
-                exit(EXIT_SUCCESS);
-            }
-
-            else
-                wait(NULL);
+                break;
         }
+
+        if (!child)
+        {
+            execute_cmd(cached_cmds[i]);
+            exit(EXIT_SUCCESS);
+        }
+        wait(NULL);
     }
 
     else
